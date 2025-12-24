@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 import { Button, Card, Badge, Progress } from "./components/UI";
-import { TokenType, Hud, Character } from "./types";
+import { TokenType, Hud, Character, PowerUp } from "./types";
 import { getTacticalBriefing } from "./services/geminiService";
 
 const MotionDiv = motion.div as any;
@@ -74,6 +74,7 @@ export default function App() {
     asteroids: [] as { mesh: THREE.Group; vx: number; vy: number; r: number; hp: number; rotationAxis: THREE.Vector3; rotationSpeed: number }[],
     bullets: [] as { mesh: THREE.Mesh; vx: number; vy: number; life: number }[],
     pickups: [] as { mesh: THREE.Group; vx: number; vy: number; type: TokenType; despawnAt: number }[],
+    powerups: [] as { mesh: THREE.Group; vx: number; vy: number; kind: PowerUp["kind"]; despawnAt: number }[],
     dock: null as THREE.Group | null,
     starfield: null as THREE.Points | null,
     particles: [] as { mesh: THREE.Mesh; velocity: THREE.Vector3; life: number; maxLife: number }[],
@@ -621,6 +622,7 @@ export default function App() {
             if (g.dockHold >= 100) {
               g.banked.COIN += g.carried.COIN;
               g.banked.GORBOY += g.carried.GORBOY;
+              g.banked.CRYSTAL += g.carried.CRYSTAL;
               g.carried = { COIN: 0, GORBOY: 0, CRYSTAL: 0 };
               g.dockHold = 0;
             }
@@ -690,10 +692,31 @@ export default function App() {
                 });
               }
 
-              const type = Math.random() > 0.8 ? "GORBOY" : "COIN";
+              // Token spawning: 65% COIN, 25% GORBOY, 10% CRYSTAL
+              const roll = Math.random();
+              const type: TokenType = roll < 0.65 ? "COIN" : roll < 0.90 ? "GORBOY" : "CRYSTAL";
               const pGroup = new THREE.Group();
-              
-              if (type === "COIN") {
+
+              if (type === "CRYSTAL") {
+                  // Crystal pickup - a glowing cyan gem
+                  const crystalGeom = new THREE.OctahedronGeometry(0.6, 0);
+                  const crystalMat = new THREE.MeshStandardMaterial({
+                    color: 0x06b6d4,
+                    emissive: 0x06b6d4,
+                    emissiveIntensity: 2,
+                    transparent: true,
+                    opacity: 0.9
+                  });
+                  const crystal = new THREE.Mesh(crystalGeom, crystalMat);
+                  pGroup.add(crystal);
+
+                  // Inner glow
+                  const innerGlow = new THREE.Mesh(
+                    new THREE.OctahedronGeometry(0.4, 0),
+                    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
+                  );
+                  pGroup.add(innerGlow);
+              } else if (type === "COIN") {
                   const cGroup = new THREE.Group();
                   
                   const rim = new THREE.Mesh(
@@ -739,7 +762,7 @@ export default function App() {
                   pGroup.add(pins);
               }
 
-              const ringColor = type === "COIN" ? 0xfbbf24 : 0xf472b6;
+              const ringColor = type === "COIN" ? 0xfbbf24 : type === "GORBOY" ? 0xf472b6 : 0x06b6d4;
               const pRing = new THREE.Mesh(
                  new THREE.TorusGeometry(1.3, 0.08, 8, 32), 
                  new THREE.MeshBasicMaterial({ color: ringColor }) 
@@ -763,6 +786,86 @@ export default function App() {
                 type: type as TokenType,
                 despawnAt: now + 12000
               });
+
+              // 15% chance to spawn a power-up from larger asteroids
+              if (a.r > 4 && Math.random() < 0.15) {
+                const powerupGroup = new THREE.Group();
+                const kinds: PowerUp["kind"][] = ["X2", "X4", "SHIELD"];
+                const kind = kinds[Math.floor(Math.random() * kinds.length)];
+
+                if (kind === "X2" || kind === "X4") {
+                  // Multiplier power-up - glowing cube with number
+                  const cubeGeom = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+                  const cubeMat = new THREE.MeshStandardMaterial({
+                    color: kind === "X2" ? 0x22c55e : 0xeab308, // Green for X2, Yellow for X4
+                    emissive: kind === "X2" ? 0x22c55e : 0xeab308,
+                    emissiveIntensity: 1.5,
+                    transparent: true,
+                    opacity: 0.8
+                  });
+                  const cube = new THREE.Mesh(cubeGeom, cubeMat);
+                  powerupGroup.add(cube);
+
+                  // Wireframe overlay
+                  const wireframe = new THREE.LineSegments(
+                    new THREE.EdgesGeometry(cubeGeom),
+                    new THREE.LineBasicMaterial({ color: 0xffffff })
+                  );
+                  powerupGroup.add(wireframe);
+
+                  // Inner glow sphere
+                  const innerGlow = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.4, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xffffff })
+                  );
+                  powerupGroup.add(innerGlow);
+                } else {
+                  // Shield power-up - glowing blue hexagon
+                  const shieldGeom = new THREE.IcosahedronGeometry(0.8, 0);
+                  const shieldMat = new THREE.MeshStandardMaterial({
+                    color: 0x3b82f6,
+                    emissive: 0x3b82f6,
+                    emissiveIntensity: 2,
+                    transparent: true,
+                    opacity: 0.8
+                  });
+                  const shield = new THREE.Mesh(shieldGeom, shieldMat);
+                  powerupGroup.add(shield);
+
+                  // Outer ring
+                  const ring = new THREE.Mesh(
+                    new THREE.TorusGeometry(1.2, 0.1, 8, 32),
+                    new THREE.MeshBasicMaterial({ color: 0x60a5fa })
+                  );
+                  ring.rotation.x = Math.PI / 2;
+                  powerupGroup.add(ring);
+                }
+
+                // Add outer glow ring to all power-ups
+                const glowRing = new THREE.Mesh(
+                  new THREE.TorusGeometry(1.5, 0.15, 8, 32),
+                  new THREE.MeshBasicMaterial({
+                    color: kind === "SHIELD" ? 0x3b82f6 : kind === "X2" ? 0x22c55e : 0xeab308,
+                    transparent: true,
+                    opacity: 0.3
+                  })
+                );
+                glowRing.rotation.x = Math.PI / 2;
+                powerupGroup.add(glowRing);
+
+                // Offset slightly from pickup
+                powerupGroup.position.copy(a.mesh.position);
+                powerupGroup.position.x += (Math.random() - 0.5) * 5;
+                powerupGroup.position.z += (Math.random() - 0.5) * 5;
+                g.scene?.add(powerupGroup);
+                g.powerups.push({
+                  mesh: powerupGroup,
+                  vx: (Math.random() - 0.5) * 6,
+                  vy: (Math.random() - 0.5) * 6,
+                  kind,
+                  despawnAt: now + 10000
+                });
+              }
 
               g.scene?.remove(a.mesh);
               g.asteroids.splice(i, 1);
@@ -805,6 +908,74 @@ export default function App() {
           g.scene?.remove(p.mesh);
           g.pickups.splice(i, 1);
         }
+      }
+
+      // Power-up update and collection loop
+      for (let i = g.powerups.length - 1; i >= 0; i--) {
+        const pu = g.powerups[i];
+        pu.mesh.position.x += pu.vx * dt;
+        pu.mesh.position.z += pu.vy * dt;
+        pu.mesh.rotation.y += 0.06;
+        pu.mesh.rotation.x += 0.02;
+        pu.mesh.position.y = Math.sin(time * 0.008) * 0.8 + 1;
+
+        // Pulsating scale effect
+        const pulse = 1 + Math.sin(time * 0.01) * 0.1;
+        pu.mesh.scale.set(pulse, pulse, pulse);
+
+        // Collection check
+        if (pu.mesh.position.distanceTo(g.ship.position) < 4 && g.shipState.alive) {
+          // Apply power-up effect
+          if (pu.kind === "X2") {
+            g.multiplier = 2;
+            g.multUntil = now + 8000; // 8 seconds
+          } else if (pu.kind === "X4") {
+            g.multiplier = 4;
+            g.multUntil = now + 6000; // 6 seconds
+          } else if (pu.kind === "SHIELD") {
+            g.shipState.shield = Math.min(100, g.shipState.shield + 50);
+            g.shipState.invulnUntil = Math.max(g.shipState.invulnUntil, now + 2000);
+          }
+
+          // Collection particle effect
+          for (let k = 0; k < 8; k++) {
+            const pGeom = new THREE.SphereGeometry(0.3);
+            const pMat = new THREE.MeshBasicMaterial({
+              color: pu.kind === "SHIELD" ? 0x3b82f6 : pu.kind === "X2" ? 0x22c55e : 0xeab308,
+              transparent: true,
+              opacity: 0.8
+            });
+            const particle = new THREE.Mesh(pGeom, pMat);
+            particle.position.copy(pu.mesh.position);
+            g.scene?.add(particle);
+            g.particles.push({
+              mesh: particle,
+              velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 15,
+                (Math.random() - 0.5) * 15,
+                (Math.random() - 0.5) * 15
+              ),
+              life: 0.6,
+              maxLife: 0.6
+            });
+          }
+
+          g.scene?.remove(pu.mesh);
+          g.powerups.splice(i, 1);
+          continue;
+        }
+
+        // Despawn check
+        if (now > pu.despawnAt) {
+          g.scene?.remove(pu.mesh);
+          g.powerups.splice(i, 1);
+        }
+      }
+
+      // Multiplier timer expiration
+      if (g.multUntil > 0 && now > g.multUntil) {
+        g.multiplier = 1;
+        g.multUntil = 0;
       }
 
       if (g.asteroids.length === 0 && g.shipState.alive) spawnWave(g.wave + 1);
@@ -852,12 +1023,17 @@ export default function App() {
       }
 
       if (e.code === 'KeyR' && !g.shipState.alive) {
-        g.shipState = { 
-            x: 0, y: 0, vx: 0, vy: 0, a: 0, va: 0, tilt: 0, 
+        g.shipState = {
+            x: 0, y: 0, vx: 0, vy: 0, a: 0, va: 0, tilt: 0,
             hp: 100, shield: 40, alive: true, invulnUntil: Date.now() + 2000,
             rollState: { active: false, dir: 0, start: 0, duration: 400 }
         };
         g.carried = { COIN: 0, GORBOY: 0, CRYSTAL: 0 };
+        g.multiplier = 1;
+        g.multUntil = 0;
+        // Clear existing power-ups
+        g.powerups.forEach(pu => g.scene?.remove(pu.mesh));
+        g.powerups = [];
         spawnWave(1);
       }
     };
@@ -974,6 +1150,10 @@ export default function App() {
                 <div className="text-[9px] text-slate-500 font-bold uppercase">RESERVE_GBOY</div>
                 <div className="text-lg font-black text-pink-400 font-mono tracking-tighter">{fmt(hud.banked.GORBOY)}</div>
               </div>
+              <div className="bg-slate-900/60 p-2 rounded-lg border border-slate-800/50 flex justify-between items-center">
+                <div className="text-[9px] text-slate-500 font-bold uppercase">CRYSTAL_CORE</div>
+                <div className="text-lg font-black text-cyan-400 font-mono tracking-tighter">{fmt(hud.banked.CRYSTAL)}</div>
+              </div>
             </div>
           </Card>
 
@@ -1008,7 +1188,11 @@ export default function App() {
                <div className="bg-slate-950/60 backdrop-blur-lg p-3 rounded-2xl border border-white/5 w-28 md:w-56 shadow-xl">
                   <div className="flex justify-between text-[8px] font-black text-slate-500 uppercase mb-2">
                     <span>CARGO_LOAD</span>
-                    {hud.multiplier > 1 && <span className="text-blue-400 font-bold">MULT_X{hud.multiplier}</span>}
+                    {hud.multiplier > 1 && (
+                      <span className={`font-bold animate-pulse ${hud.multiplier === 4 ? "text-yellow-400" : "text-green-400"}`}>
+                        X{hud.multiplier}_ACTIVE
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1">
                     <div className="flex justify-between text-[10px] font-mono leading-none">
@@ -1018,6 +1202,10 @@ export default function App() {
                     <div className="flex justify-between text-[10px] font-mono leading-none">
                        <span className="text-slate-500">G</span>
                        <span className="text-pink-400 font-bold">{hud.carried.GORBOY}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-mono leading-none">
+                       <span className="text-slate-500">X</span>
+                       <span className="text-cyan-400 font-bold">{hud.carried.CRYSTAL}</span>
                     </div>
                   </div>
                </div>
