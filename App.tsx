@@ -269,31 +269,42 @@ export default function App() {
     // --- GORBOY II SHIP MODEL ---
     const shipGroup = new THREE.Group();
 
-    // Materials
-    const hullMat = new THREE.MeshStandardMaterial({ 
-        color: 0xe2e8f0, // Silver
-        metalness: 0.6, 
-        roughness: 0.25 
+    // Materials - Classic Game Boy Color Scheme
+    const hullMat = new THREE.MeshStandardMaterial({
+        color: 0xf5f5f0, // Off-white Game Boy color
+        metalness: 0.3,
+        roughness: 0.6
     });
-    const darkMat = new THREE.MeshStandardMaterial({ 
-        color: 0x1e293b, // Dark slate
-        metalness: 0.5, 
-        roughness: 0.5 
+    const darkMat = new THREE.MeshStandardMaterial({
+        color: 0x4a4a4a, // Dark gray
+        metalness: 0.4,
+        roughness: 0.5
     });
-    const emissiveBlue = new THREE.MeshStandardMaterial({ 
-        color: 0x06b6d4, // Cyan
-        emissive: 0x06b6d4, 
-        emissiveIntensity: 2.0,
+    const pinkMat = new THREE.MeshStandardMaterial({
+        color: 0xc0267e, // Pink/Magenta for buttons
+        emissive: 0xc0267e,
+        emissiveIntensity: 0.8,
         toneMapped: false
     });
-    const screenMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const dpadMat = new THREE.MeshStandardMaterial({
+        color: 0x3d3d3d, // Dark gray D-Pad
+        metalness: 0.3,
+        roughness: 0.7
+    });
+    const screenMat = new THREE.MeshBasicMaterial({ color: 0x9bbc0f }); // Classic GB green
     const holographMat = new THREE.MeshBasicMaterial({
-        color: 0x06b6d4,
+        color: 0x9bbc0f, // Green holograph to match screen
         transparent: true,
         opacity: 0.3,
         side: THREE.DoubleSide,
         blending: THREE.AdditiveBlending,
         depthWrite: false
+    });
+    const engineGlowMat = new THREE.MeshStandardMaterial({
+        color: 0xc0267e, // Pink engine glow
+        emissive: 0xc0267e,
+        emissiveIntensity: 2.0,
+        toneMapped: false
     });
 
     // 1. Main Chassis (GameBoy Body)
@@ -334,11 +345,11 @@ export default function App() {
     engineR.position.set(0.8, 0, -2.8); // Back
     shipGroup.add(engineR);
 
-    // Emissive Cores
+    // Emissive Cores - Pink engine glow
     const coreGeom = new THREE.CylinderGeometry(0.35, 0.1, 0.2, 16);
-    const coreL = new THREE.Mesh(coreGeom, emissiveBlue);
+    const coreL = new THREE.Mesh(coreGeom, engineGlowMat);
     coreL.rotation.x = -Math.PI / 2; // Point out back
-    coreL.position.set(0, 0.5, 0); 
+    coreL.position.set(0, 0.5, 0);
     engineL.add(coreL);
     const coreR = coreL.clone();
     engineR.add(coreR);
@@ -368,20 +379,20 @@ export default function App() {
     holoMesh.position.set(0, 0.8, -0.5);
     shipGroup.add(holoMesh);
 
-    // D-Pad (Left side)
+    // D-Pad (Left side) - Dark gray
     const dpadGroup = new THREE.Group();
-    const dpadV = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.15, 0.75), emissiveBlue);
-    const dpadH = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.15, 0.25), emissiveBlue);
+    const dpadV = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.15, 0.75), dpadMat);
+    const dpadH = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.15, 0.25), dpadMat);
     dpadGroup.add(dpadV, dpadH);
     dpadGroup.position.set(-1.0, 0.5, 1.5);
     shipGroup.add(dpadGroup);
 
-    // Buttons (Right side)
+    // Buttons (Right side) - Pink/Magenta
     const btnGeom = new THREE.CylinderGeometry(0.2, 0.2, 0.15, 16);
-    const btnA = new THREE.Mesh(btnGeom, emissiveBlue);
+    const btnA = new THREE.Mesh(btnGeom, pinkMat);
     btnA.position.set(1.0, 0.5, 1.3);
     shipGroup.add(btnA);
-    const btnB = new THREE.Mesh(btnGeom, emissiveBlue);
+    const btnB = new THREE.Mesh(btnGeom, pinkMat);
     btnB.position.set(0.6, 0.5, 1.6);
     shipGroup.add(btnB);
 
@@ -394,24 +405,24 @@ export default function App() {
         shipGroup.add(s);
     }
 
-    // Shield
+    // Shield - Pink to match ship theme
     const shieldGeom = new THREE.IcosahedronGeometry(4.0, 2);
-    const shieldMat = new THREE.MeshBasicMaterial({ 
-        color: 0x06b6d4, 
-        transparent: true, 
+    const shieldMat = new THREE.MeshBasicMaterial({
+        color: 0xc0267e,
+        transparent: true,
         opacity: 0,
-        wireframe: true 
+        wireframe: true
     });
     const shieldMesh = new THREE.Mesh(shieldGeom, shieldMat);
     shipGroup.add(shieldMesh);
     g.shieldMesh = shieldMesh;
 
-    // Thruster Lights
-    const tLightL = new THREE.PointLight(0x06b6d4, 0, 10);
+    // Thruster Lights - Pink glow
+    const tLightL = new THREE.PointLight(0xc0267e, 0, 10);
     tLightL.position.set(-0.8, 0, -4);
     shipGroup.add(tLightL);
     g.thrusterLightL = tLightL;
-    const tLightR = new THREE.PointLight(0x06b6d4, 0, 10);
+    const tLightR = new THREE.PointLight(0xc0267e, 0, 10);
     tLightR.position.set(0.8, 0, -4);
     shipGroup.add(tLightR);
     g.thrusterLightR = tLightR;
@@ -527,7 +538,7 @@ export default function App() {
           if (Math.random() > 0.4) {
             const spawnParticle = (offsetX: number) => {
                 const pGeom = new THREE.SphereGeometry(0.2);
-                const pMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.8 });
+                const pMat = new THREE.MeshBasicMaterial({ color: 0xc0267e, transparent: true, opacity: 0.8 });
                 const p = new THREE.Mesh(pGeom, pMat);
                 // Engine is at -Z relative to ship
                 const pPos = new THREE.Vector3(offsetX, 0, -3.5);
